@@ -1,6 +1,6 @@
 {
   "name": "cctime",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "module",
   "description": "Calculate your Claude Code work time from session logs",
   "bin": {
@@ -21,7 +21,12 @@
     "yesterday": "node bin/cctime.js --yesterday",
     "week": "node bin/cctime.js --week",
     "month": "node bin/cctime.js --month",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 bin/cctime-build.js --outfile dist/cctime-darwin-arm64",
+    "build:darwin-x64": "bun build --compile --target=bun-darwin-x64 bin/cctime-build.js --outfile dist/cctime-darwin-x64",
+    "build:linux-x64": "bun build --compile --target=bun-linux-x64 bin/cctime-build.js --outfile dist/cctime-linux-x64",
+    "build:windows-x64": "bun build --compile --target=bun-windows-x64 bin/cctime-build.js --outfile dist/cctime-windows-x64.exe",
+    "build": "npm run build:darwin-arm64 && npm run build:darwin-x64 && npm run build:linux-x64 && npm run build:windows-x64"
   },
   "keywords": [
     "claude",

@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build darwin-arm64
+        run: bun build --compile --target=bun-darwin-arm64 bin/cctime-build.js --outfile dist/cctime-darwin-arm64
+
+      - name: Build darwin-x64
+        run: bun build --compile --target=bun-darwin-x64 bin/cctime-build.js --outfile dist/cctime-darwin-x64
+
+      - name: Build linux-x64
+        run: bun build --compile --target=bun-linux-x64 bin/cctime-build.js --outfile dist/cctime-linux-x64
+
+      - name: Build windows-x64
+        run: bun build --compile --target=bun-windows-x64 bin/cctime-build.js --outfile dist/cctime-windows-x64.exe
+
+      - name: Create tarballs
+        run: |
+          tar -czf dist/cctime-darwin-arm64.tar.gz -C dist cctime-darwin-arm64
+          tar -czf dist/cctime-darwin-x64.tar.gz -C dist cctime-darwin-x64
+          tar -czf dist/cctime-linux-x64.tar.gz -C dist cctime-linux-x64
+          zip -j dist/cctime-windows-x64.zip dist/cctime-windows-x64.exe
+
+      - name: Generate checksums
+        run: cd dist && sha256sum *.tar.gz *.zip > checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/cctime-darwin-arm64.tar.gz
+            dist/cctime-darwin-x64.tar.gz
+            dist/cctime-linux-x64.tar.gz
+            dist/cctime-windows-x64.zip
+            dist/checksums.txt
+
+  update-homebrew:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: ShahadIshraq/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Download checksums from release
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          gh release download "$TAG" --repo ShahadIshraq/cctime --pattern checksums.txt --dir /tmp
+
+      - name: Update formula
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          SHA_DARWIN_ARM64=$(grep 'cctime-darwin-arm64.tar.gz' /tmp/checksums.txt | awk '{print $1}')
+          SHA_DARWIN_X64=$(grep 'cctime-darwin-x64.tar.gz' /tmp/checksums.txt | awk '{print $1}')
+          SHA_LINUX_X64=$(grep 'cctime-linux-x64.tar.gz' /tmp/checksums.txt | awk '{print $1}')
+
+          mkdir -p Formula
+
+          cat > Formula/cctime.rb <<'FORMULA'
+          class Cctime < Formula
+            desc "Calculate work time from Claude Code session logs"
+            homepage "https://github.com/ShahadIshraq/cctime"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/ShahadIshraq/cctime/releases/download/vVERSION_PLACEHOLDER/cctime-darwin-arm64.tar.gz"
+                sha256 "SHA_DARWIN_ARM64_PLACEHOLDER"
+              else
+                url "https://github.com/ShahadIshraq/cctime/releases/download/vVERSION_PLACEHOLDER/cctime-darwin-x64.tar.gz"
+                sha256 "SHA_DARWIN_X64_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/ShahadIshraq/cctime/releases/download/vVERSION_PLACEHOLDER/cctime-linux-x64.tar.gz"
+              sha256 "SHA_LINUX_X64_PLACEHOLDER"
+            end
+
+            def install
+              if OS.mac? && Hardware::CPU.arm?
+                bin.install "cctime-darwin-arm64" => "cctime"
+              elsif OS.mac?
+                bin.install "cctime-darwin-x64" => "cctime"
+              else
+                bin.install "cctime-linux-x64" => "cctime"
+              end
+            end
+
+            def caveats
+              <<~EOS
+                cctime reads session data from ~/.claude/
+                Make sure Claude Code is installed: https://claude.ai/code
+              EOS
+            end
+
+            test do
+              assert_match "Usage:", shell_output("#{bin}/cctime --help")
+              assert_match version.to_s, shell_output("#{bin}/cctime --version")
+            end
+          end
+          FORMULA
+
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" Formula/cctime.rb
+          sed -i "s/SHA_DARWIN_ARM64_PLACEHOLDER/${SHA_DARWIN_ARM64}/g" Formula/cctime.rb
+          sed -i "s/SHA_DARWIN_X64_PLACEHOLDER/${SHA_DARWIN_X64}/g" Formula/cctime.rb
+          sed -i "s/SHA_LINUX_X64_PLACEHOLDER/${SHA_LINUX_X64}/g" Formula/cctime.rb
+
+      - name: Commit and push formula
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/cctime.rb
+          git commit -m "Update cctime to ${{ github.ref_name }}"
+          git push
