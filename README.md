@@ -89,16 +89,22 @@ ccworktime --yesterday --no-subagents
 ## Sample Output
 
 ```
-=== Claude Code Work Time Report ===
-Period: 2026-03-03 to 2026-03-03
+╭─────────────────────────────────────────────╮
+│   Claude Code Work Time Report              │
+│   Period: 2026-03-03 to 2026-03-03          │
+╰─────────────────────────────────────────────╯
 
-  2026-03-03  3h 02m
-    09:15 - 11:29  (2h 14m)
-    14:00 - 14:48  (0h 48m)
-
-  Total:      3h 02m
-=================================
+┌──────────────┬────────────┬───────────────────────────────────┐
+│ Date         │ Duration   │ Work Blocks                       │
+├──────────────┼────────────┼───────────────────────────────────┤
+│ 2026-03-03   │ 3h 02m     │ 09:15 - 11:29  (2h 14m)          │
+│              │            │ 14:00 - 14:48  (0h 48m)           │
+├──────────────┼────────────┼───────────────────────────────────┤
+│ Total        │ 3h 02m     │ 2 blocks across 1 days            │
+└──────────────┴────────────┴───────────────────────────────────┘
 ```
+
+> Colors are shown in TTY terminals. Set `NO_COLOR=1` to disable.
 
 ## How It Works
 
@@ -110,8 +116,8 @@ Period: 2026-03-03 to 2026-03-03
 
 ## Requirements
 
-- Node.js >= 18
 - Claude Code installed and used at least once
+- Node.js >= 18 (only for npm/npx — Homebrew and binary installs need no runtime)
 
 ## License
 
